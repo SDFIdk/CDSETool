@@ -76,6 +76,7 @@ def download(
     concurrency: Annotated[
         int, typer.Option(help="Number of concurrent connections")
     ] = 1,
+    skip: Annotated[bool, typer.Option(help="Set true to skip already downloaded files")] = False,
     search_term: Annotated[
         Optional[List[str]],
         typer.Option(
@@ -97,7 +98,7 @@ def download(
 
     list(
         download_features(
-            features, path, {"monitor": StatusMonitor(), "concurrency": concurrency}
+            features, path, {"monitor": StatusMonitor(), "concurrency": concurrency, "skip": skip}
         )
     )
 
