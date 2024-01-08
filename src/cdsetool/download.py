@@ -29,7 +29,7 @@ def download_feature(feature, path, options=None):
 
     skip = options.get("skip",False)
 
-    if skip and os.path.exists(filename):
+    if skip and os.path.exists(filename.replace(".SAFE", ".zip")):
         return feature.get("id")
 
     with _get_monitor(options).status() as status:
@@ -75,7 +75,7 @@ def download_features(features, path, options=None):
         return download_feature(feature, path, options)
 
     for feature in _concurrent_process(
-        _download_feature, features, options.get("concurrency", 1), options.get("skip", False)
+        _download_feature, features, options.get("concurrency", 1)
     ):
         yield feature
 
