@@ -29,7 +29,7 @@ def download_feature(feature, path, options=None):
 
     skip = options.get("skip",False)
 
-    if skip and os.path.exists(filename.replace(".SAFE", ".zip")):
+    if skip and os.path.exists(os.path.join(path, filename.replace(".SAFE", ".zip"))):
         return feature.get("id")
 
     with _get_monitor(options).status() as status:
