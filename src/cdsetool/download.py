@@ -27,8 +27,10 @@ def download_feature(feature, path, options=None):
     if not url or not filename:
         return feature.get("id")
 
-    # if os.path.exists(file):
-    #     return feature.get("id")
+    skip = options.get("skip",False)
+
+    if skip and os.path.exists(os.path.join(path, filename.replace(".SAFE", ".zip"))):
+        return feature.get("id")
 
     with _get_monitor(options).status() as status:
         status.set_filename(filename)
