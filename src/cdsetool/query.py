@@ -10,6 +10,7 @@ import re
 import json
 import requests
 import geopandas as gpd
+from cdsetool.logger import NoopLogger
 
 
 class _FeatureIterator:
@@ -44,6 +45,7 @@ class FeatureQuery:
 
     def __init__(self, collection, search_terms, proxies=None):
         self.features = []
+        self.logger = NoopLogger()
         self.proxies = proxies
         self.next_url = _query_url(
             collection, {**search_terms, "exactCount": "1"}, proxies=proxies
@@ -75,7 +77,9 @@ class FeatureQuery:
             total_results = res.get("properties", {}).get("totalResults")
             if total_results is not None:
                 self.total_results = total_results
-
+            self.__add_odata_to_features(
+                self.__fetch_odata_from_product_list(self.features)
+            )
             self.__set_next_url(res)
 
     def __set_next_url(self, res):
@@ -86,6 +90,74 @@ class FeatureQuery:
 
         if self.next_url:
             self.next_url = self.next_url.replace("exactCount=1", "exactCount=0")
+
+    def __fetch_odata_from_product_list(self, product_list):
+        """
+        Given a product list, return the odata response
+        """
+        body = {}
+        list_products = []
+        for product in product_list:
+            if "properties" in product:
+                if "title" in product["properties"]:
+                    list_products.append({"Name": product["properties"]["title"]})
+        body["FilterProducts"] = list_products
+        url_esa = "https://catalogue.dataspace.copernicus.eu"
+        odata_path = "/odata/v1/Products/OData.CSC.FilterList"
+        odata_url = url_esa + odata_path
+        res = self.__get_odata(odata_url, body)
+        return res
+
+    def __get_odata(self, url, data_json):
+        """
+        From the odata url and request body, get the odata response
+        """
+        res = requests.post(
+            url, json=data_json, timeout=120, proxies=self.proxies
+        ).json()
+        return res
+
+    def __add_odata_to_features(self, odata):
+        """
+        Given the odatadict, add the correct checksum,
+        (by matching the Ids), the features
+        """
+        if odata:
+            map_id_checksum = {}
+            odata_list_value = odata.get("value", [])
+            for product_odata in odata_list_value:
+                map_id_checksum[product_odata["Id"]] = {
+                    "Checksum": product_odata.get("Checksum", []),
+                    "ContentLength": product_odata.get("ContentLength", -1),
+                    "odata": product_odata,
+                }
+            for feature in self.features:
+                if feature.get("id") in map_id_checksum:
+                    product_odata = map_id_checksum[feature.get("id")]
+                    # we take the odata and checksums even if they are wrong
+                    # then they are handled by the downloader
+                    feature["odata"] = product_odata["odata"]
+                    feature["Checksum"] = product_odata["Checksum"]
+                    if (
+                        feature.get("properties")
+                        .get("services")
+                        .get("download")
+                        .get("size")
+                        != product_odata["ContentLength"]
+                    ):
+                        # There is problems with the metadata
+                        # provided by esa as far as
+                        # we know in
+                        # https://github.com/SDFIdk/CDSETool/issues/40#issuecomment-1931868462
+                        # the sizes could differ but we will
+                        # still add the odata and checksum to the features
+                        # if the Checksum provided is
+                        # wrong it's handled by the downloader
+                        self.logger.warning(
+                            f"Warning: {feature.get('id')} no match in sizes"
+                        )
+                else:
+                    self.logger.warning(f"Warning: {feature.get('id')} not in odata")
 
 
 def query_features(collection, search_terms, proxies=None):
@@ -162,7 +234,6 @@ def describe_collection(collection, proxies=None):
 
 def _query_url(collection, search_terms, proxies=None):
     description = describe_collection(collection, proxies=proxies)
-
     query_list = []
     for key, value in search_terms.items():
         val = _serialize_search_term(value)

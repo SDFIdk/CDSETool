@@ -3,6 +3,13 @@ import pytest
 import requests
 
 
+def _mock_metadata(requests_mock):
+    file = "tests/query/mock/sentinel_1/page_6.json"
+    url = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products/OData.CSC.FilterList"
+    with open(file, "r", encoding="utf-8") as file:
+        requests_mock.post(url, text=file.read())
+
+
 def _mock_describe(requests_mock):
     url = "https://catalogue.dataspace.copernicus.eu/resto/api/collections/Sentinel1/describe.xml"
     with open(
@@ -42,12 +49,14 @@ def _mock_sentinel_1(requests_mock):
 
 def test_query_features(requests_mock):
     _mock_describe(requests_mock)
+    _mock_metadata(requests_mock)
 
     assert type(query_features("Sentinel1", {"maxRecords": 10})) is FeatureQuery
 
 
 def test_query_features_length(requests_mock):
     _mock_describe(requests_mock)
+    _mock_metadata(requests_mock)
     _mock_sentinel_1(requests_mock)
 
     query = query_features("Sentinel1", {"maxRecords": 10})
@@ -63,6 +72,7 @@ def test_query_features_length(requests_mock):
 
 def test_query_features_reusable(requests_mock):
     _mock_describe(requests_mock)
+    _mock_metadata(requests_mock)
     _mock_sentinel_1(requests_mock)
 
     query = query_features("Sentinel1", {"maxRecords": 10})
@@ -75,6 +85,7 @@ def test_query_features_reusable(requests_mock):
 
 def test_query_features_random_access(requests_mock):
     _mock_describe(requests_mock)
+    _mock_metadata(requests_mock)
     _mock_sentinel_1(requests_mock)
 
     query = query_features("Sentinel1", {"maxRecords": 10})

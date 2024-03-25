@@ -21,6 +21,7 @@ dependencies = [
   "requests >= 2.28.1,< 2.32.0",
   "pyjwt[crypto] ~= 2.8.0",
   "geopandas >= 0.13.2",
+  "blake3 >= 0.4.1",
 ]
 [project.optional-dependencies]
 test = [

@@ -10,10 +10,24 @@ import random
 import tempfile
 import time
 import shutil
+import hashlib
+from enum import Enum
+from blake3 import blake3
 from cdsetool._processing import _concurrent_process
 from cdsetool.credentials import Credentials, TokenClientConnectionError
 from cdsetool.logger import NoopLogger
 from cdsetool.monitor import NoopMonitor
+
+
+class Validity(Enum):
+    """
+    Validity enum for the checksum
+    """
+
+    VALID = 1
+    INVALID = 2
+    IGNORE = 3
+    CONTINUE = 4
 
 
 def download_feature(feature, path, options=None):
@@ -63,7 +77,13 @@ def download_feature(feature, path, options=None):
                     for chunk in response.iter_content(chunk_size=1024 * 1024 * 5):
                         file.write(chunk)
                         status.add_progress(len(chunk))
-
+                if validity_check(tmp, feature) not in (
+                    Validity.VALID,
+                    Validity.IGNORE,
+                ):
+                    log.error(f"Faulty checksum for {filename}")
+                    os.remove(tmp)
+                    return None
                 shutil.move(tmp, result_path)
                 return filename
     log.error(f"Failed to download {filename}")
@@ -121,3 +141,50 @@ def _get_credentials(options):
     return options.get("credentials") or Credentials(
         proxies=options.get("proxies", None)
     )
+
+
+def validity_check(temp_path, product_info):
+    """Given it's temp_path and metadata info checks if the data downloaded is valid"""
+    size = os.path.getsize(temp_path)
+    content_length = (
+        product_info.get("properties").get("services").get("download").get("size")
+    )
+    if size > content_length:
+        return Validity.INVALID
+    if size != content_length:
+        # here it's a partial download logic to implement is TODO
+        return Validity.CONTINUE
+    return _checksum_compare(temp_path, product_info)
+
+
+def _checksum_compare(temp_path, product_info):
+    """Compare a given MD5 checksum with one calculated from a file."""
+    checksum_list = product_info.get("Checksum", [])
+    algo, checksum = from_checksum_list_to_checksum(checksum_list)
+    if checksum is None:
+        # no checksum available
+        return Validity.IGNORE
+    with open(temp_path, "rb") as f:
+        while True:
+            block_data = f.read(8192)
+            if not block_data:
+                break
+            algo.update(block_data)
+    return Validity.VALID if algo.hexdigest() == checksum else Validity.INVALID
+
+
+def from_checksum_list_to_checksum(checksum_list):
+    """
+    From a list of checksum (provided by ESA if provided)
+    return the checksum and algo
+    """
+    if not checksum_list or len(checksum_list) == 0:
+        # checksum odata is not provided in the metadata
+        return None, None
+    algo, checksum = checksum_list[0].get("Algorithm"), checksum_list[0].get("Value")
+    algo = {
+        "sha3-256": hashlib.sha3_256(),
+        "MD5": hashlib.md5(),
+        "BLAKE3": blake3,
+    }.get(algo)
+    return algo, checksum
