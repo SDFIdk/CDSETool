@@ -156,7 +156,7 @@ def describe_collection(
     )
 
     parameters = {}
-    if not parameter_node_parent:
+    if parameter_node_parent is None:
         return parameters
     for parameter_node in parameter_node_parent:
         name = parameter_node.attrib.get("name")
