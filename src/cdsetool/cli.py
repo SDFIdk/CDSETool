@@ -120,3 +120,7 @@ def _to_dict(term_list: List[str]) -> Dict[str, str]:
         key, value = item.split("=")
         search_terms[key] = value
     return search_terms
+
+
+if __name__ == "__main__":
+    main()
