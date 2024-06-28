@@ -12,9 +12,9 @@ from cdsetool.query import describe_collection, query_features
 from cdsetool.monitor import StatusMonitor
 from cdsetool.download import download_features
 
-app = typer.Typer()
+app = typer.Typer(no_args_is_help=True)
 
-query_app = typer.Typer()
+query_app = typer.Typer(no_args_is_help=True)
 app.add_typer(query_app, name="query")
 
 
